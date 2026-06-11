@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Local IP2Location database (licensed, not committed)
+data/*.BIN
+
+# dnsdist TLS certs (generated or private)
+dnsdist/certs/*.pem
+
+# Secrets & Config files
+.env

@@ -1,0 +1,89 @@
+name: ip64
+services:
+  # PowerDNS remote backend (FastAPI). Internal only — not published to host.
+  ip64_backend:
+    build: .
+    image: honzahommer/ip64:latest
+    env_file:
+      - .env
+    environment:
+      IP64_HOST: "0.0.0.0"
+      IP64_PORT: "8080"
+      IP64_FQDN: "${IP64_FQDN:-ip64.io.}"
+      IP64_IPDB: "/data/IP2LOCATION-LITE-DB5.BIN"
+      IP64_LOG_LEVEL: "${IP64_LOG_LEVEL:-WARNING}"
+      # Space-separated NS entries: name[,ipv4][,ipv6]
+      # e.g. "dns.ip64.io,1.2.3.4,2001:db8::1 sns.ip64.io,5.6.7.8,2001:db8::2"
+      IP64_NS_SERVERS: "${IP64_NS_SERVERS:-}"
+    volumes:
+      # Drop IP2LOCATION-LITE-DB5.BIN here to enable LOC/TXT geo records.
+      # Without it the backend still answers A/AAAA/SOA/NS.
+      - ./data:/data:ro
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  # Authoritative DNS server talking to ip64 over the remote HTTP connector.
+  ip64_pdns:
+    image: powerdns/pdns-auth-49:latest
+    env_file:
+      - .env
+    depends_on:
+      ip64_backend:
+        condition: service_healthy
+    volumes:
+      - ./pdns/pdns.conf:/etc/powerdns/pdns.conf:ro
+    networks:
+      default:
+        # Static IP so dnsdist can target it (dnsdist newServer needs an IP).
+        ipv4_address: 172.35.53.10
+    ports:
+      - "${IP64_DNS_PORT:-53}:53/udp"
+      - "${IP64_DNS_PORT:-53}:53/tcp"
+    restart: unless-stopped
+
+  # Generates a self-signed cert for DoH on first run if none is present.
+  # Drop your own cert.pem/key.pem in ./dnsdist/certs to use real certificates.
+  ip64_certgen:
+    image: alpine:3
+    volumes:
+      - ./dnsdist/certs:/certs
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -f /certs/cert.pem ] || [ ! -f /certs/key.pem ]; then
+          apk add --no-cache openssl
+          openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+            -keyout /certs/key.pem -out /certs/cert.pem \
+            -subj "/CN=${IP64_DOH_CN:-ip64.io}"
+          chmod 644 /certs/cert.pem /certs/key.pem
+          echo "Generated self-signed cert for CN=${IP64_DOH_CN:-ip64.io}"
+        else
+          echo "Using existing cert in /certs"
+        fi
+    restart: "no"
+
+  # DNS-over-HTTPS front-end forwarding to the pdns backend.
+  ip64_dnsdist:
+    image: powerdns/dnsdist-19:latest
+    env_file:
+      - .env
+    depends_on:
+      ip64_backend:
+        condition: service_started
+      ip64_certgen:
+        condition: service_completed_successfully
+    volumes:
+      - ./dnsdist/dnsdist.conf:/etc/dnsdist/dnsdist.conf:ro
+      - ./dnsdist/certs:/etc/dnsdist/certs:ro
+    ports:
+      - "${IP64_DOH_PORT:-443}:443/tcp"
+    restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.35.53.0/24
