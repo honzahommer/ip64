@@ -43,9 +43,13 @@ IP64_TTL = int(os.environ.get("IP64_TTL", "300"))
 IP64_IPDB = os.environ.get("IP64_IPDB", "IP2LOCATION-LITE-DB5.BIN")
 IP64_IPDB_MODE = os.environ.get("IP64_IPDB_MODE", "SHARED_MEMORY")
 
+# A / AAAA for the apex
+IP64_ROOT_A = os.environ.get("IP64_ROOT_A", "127.0.0.1").split()
+IP64_ROOT_AAAA = os.environ.get("IP64_ROOT_AAAA", "::1").split()
+
 # Wildcard answers when the subdomain carries no IP (e.g. test.ip64.io.)
-IP64_ROOT_A = os.environ.get("IP64_ROOT_A", "127.0.0.1")
-IP64_ROOT_AAAA = os.environ.get("IP64_ROOT_AAAA", "::1")
+IP64_WILDCARD_A = os.environ.get("IP64_WILDCARD_A", "127.0.0.1").split()
+IP64_WILDCARD_AAAA = os.environ.get("IP64_WILDCARD_AAAA", "::1").split()
 
 # SOA / NS for the apex so PowerDNS can serve the zone authoritatively.
 IP64_SOA_MNAME = _fqdn(os.environ.get("IP64_SOA_MNAME", "ns1." + IP64_FQDN))
@@ -197,7 +201,6 @@ def handle_lookup(req_params: dict) -> dict:
             for ns in IP64_NS_SERVERS:
                 results.append(_record("NS", qname, ns))
 
-
     # Glue records for configured nameservers (e.g. ns1.ip64.io -> A/AAAA).
     # PowerDNS auto-queries these when returning NS records and includes
     # the answers in the additional section of NS responses.
@@ -257,10 +260,20 @@ def handle_lookup(req_params: dict) -> dict:
 
     else:
         # No IP in the name (apex or e.g. test.abc.ip64.io.) -> loopback wildcard.
-        if qtype in ("A", "ANY"):
-            results.append(_record("A", qname, IP64_ROOT_A))
-        if qtype in ("AAAA", "ANY"):
-            results.append(_record("AAAA", qname, IP64_ROOT_AAAA))
+        if qname == IP64_FQDN:
+            if qtype in ("A", "ANY"):
+                for a in IP64_ROOT_A:
+                    results.append(_record("A", qname, a))
+            if qtype in ("AAAA", "ANY"):
+                for aaaa in IP64_ROOT_AAAA:
+                    results.append(_record("AAAA", qname, aaaa))
+        else:
+            if qtype in ("A", "ANY"):
+                for a in IP64_WILDCARD_A:
+                    results.append(_record("A", qname, a))
+            if qtype in ("AAAA", "ANY"):
+                for aaaa in IP64_WILDCARD_AAAA:
+                    results.append(_record("AAAA", qname, aaaa))
 
     return {"result": results}
 

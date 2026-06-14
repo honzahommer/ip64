@@ -63,7 +63,8 @@ The zone name and records are configured via environment variables (see `docker-
 | `IP64_DOH_CN` | `ip64.io` | CN used for the auto-generated self-signed DoH cert |
 | `IP64_TTL` | `300` | TTL for generated records |
 | `IP64_IPDB` | `/data/IP2LOCATION-LITE-DB5.BIN` | Path to the IP2Location BIN |
-| `IP64_ROOT_A` / `IP64_ROOT_AAAA` | `127.0.0.1` / `::1` | Wildcard answer for names without an embedded IP |
+| `IP64_ROOT_A` / `IP64_ROOT_AAAA` | `127.0.0.1` / `::1` | Answer for apex |
+| `IP64_WILDCARD_A` / `IP64_WILDCARD_AAAA` | `127.0.0.1` / `::1` | Wildcard answer for names without an embedded IP |
 | `IP64_SOA_MNAME` / `IP64_SOA_RNAME` | `ns1.<fqdn>` / `hostmaster.<fqdn>` | SOA primary / contact |
 | `IP64_NS_SERVERS` | `IP64_SOA_MNAME` | Space-separated `NS` entries: `name[,ipv4][,ipv6]` |
 | `IP64_LOG_LEVEL` | `WARNING` | Backend log level |
